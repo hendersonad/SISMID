@@ -1,0 +1,44 @@
+
+
+=======================================================================================
+1: min_inc=1  max_inc=3  prob_inc=(0.330, 0.330, 0.330, )
+
+1: lower_inf=0  upper_inf=6  prob_inf=(1.000, 1.000, 1.000, 0.800, 0.600, 0.400, 0.200, )
+=======================================================================================
+
+# Estimates of b
+4.229947e-03,  1.631636e-03,  1.984151e-03,  8.994777e-03
+
+# Estimates of p
+1.463188e-02,  1.074471e-02,  3.434369e-03,  6.013507e-02
+
+# Estimates of u
+
+# Estimates of q
+
+# Estimates of odds ratios for c2p exposure
+
+# Estimates of odds ratios for p2p exposure
+          0.23612638,            0.40238716,            0.00836701,            6.66375210,            0.39699490
+
+# Estimates of odds ratios for pathogenicity
+
+# Estimates of odds ratios for pre-immunity level
+
+# Estimates of CPI
+4.150332e-02,  1.570561e-02,  1.966528e-02,  8.639296e-02
+
+# Estimates of SAR
+7.096885e-02,  5.053251e-02,  1.672301e-02,  2.554607e-01
+
+# Estimates of R0
+          0.21290656,            0.16738696,            0.04559979,            0.99406613
+
+#Log-likelihood
+        -84.79662859
+
+#Covariance Matrix Estimates
+2.662237e-06  -3.776124e-06  -1.937856e-04  
+-3.776124e-06  1.154487e-04  -1.528169e-03  
+-1.937856e-04  -1.528169e-03  1.619154e-01  
+

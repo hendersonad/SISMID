@@ -1,0 +1,186 @@
+## Exercise 5
+## age-structured models
+require(deSolve)
+
+setwd('/Users/AHenderson/OneDrive - London School of Hygiene and Tropical Medicine/PhD/SISMID/SISMID2 code')
+load('data/data.RData') #load the data
+tail(measles)
+plot(measles$Time,measles$Cases,type='l', xlab='Year',ylab='Cases') #plot cases over time
+
+#plot measles cases in subsequent two year intervals using the constructed variable "TwoYEAR"
+plot(measles$TwoYear,measles$Cases,type='p',pch=20,col='grey',xlab='Time (years)',ylab='Cases')
+#fit a smooth line using loess -- notice data must be ordered for loess to fit properly
+smooth.cases<-loess(measles$Cases[order(measles$TwoYear)]~measles$TwoYear[order(measles$TwoYear)],
+                    span=0.3)
+lines(smooth.cases$x,smooth.cases$fitted,lwd=2) #add smooth fit
+
+################
+# how to age in a model...
+# to cumbersome to age everyone +1 year every year so use an approximation:
+# born into first age class then once per year:
+# 1/6 of the first age class to the second age class, 1/4 of the second age class to the third age class, 
+# and 1/10 of the third age class to the fourth age class.
+
+age.model<-function(t,x,parms){  #a function to return derivatives of age structured model
+  S<-x[1:4]     #S are the first four elements of x
+  E<-x[5:8]     #E are the next four elements of x
+  I<-x[9:12]    #I are the last four elements ofx
+  dx<-vector(length=12)   #a vector to store the derivatives
+  for(a in 1:4){   #loop over age classes
+    tmp <- (parms$beta[a,]%*%I)*S[a]   #temporary variable with no. infected NOTE: %*% for matrix multiplication
+    dx[a] <- parms$nu[a]*55/75 - tmp - parms$mu[a]*S[a]                 #dS
+    dx[a+4] <- tmp - parms$sigma*E[a] - parms$mu[a]*E[a]                #dE
+    dx[a+8] <- parms$sigma*E[a] - parms$gamma*I[a] - parms$mu[a]*I[a]   #dI
+  }  
+  return(list(dx))  #return the result
+}
+
+#init conditions:
+y0<-c(0.05, 0.01, 0.01, 0.008, # S in age group 1,2,3,4
+      0.0001, 0.0001, 0.0001, 0.0001, #E in 1-4
+      0.0001, 0.0001, 0.0001, 0.0001) #I in 1-4
+#parameters
+parms<-list(beta=matrix(c(2.089, 2.089, 2.086, 2.037, # transmissability matrix for age groups
+                          2.089, 9.336, 2.086, 2.037, 
+                          2.086, 2.086, 2.086, 2.037, 
+                          2.037, 2.037, 2.037,2.037),
+                        nrow=4,byrow=TRUE),
+            sigma=1/8, gamma=1/5, #constants for all groups N.B. annual rates
+            nu=c(1/(55*365),0,0,0),  mu=c(1/(55*365),0,0,0)) #can only die in group 4, be born into group 1
+parms
+
+#Now, we solve the equations one year at a time, moving age classes up between years, and plot.
+n=c(6,4,10,55)/75   #number of years in each age class
+maxTime <- 100*365  #number of days in 100 years
+T0=0                #initial time
+S=c()               #initialize S
+E=c()               #initialize E
+I=c()               #initialize E
+T=c()               #initialize T, a vector to hold times
+while(T0<maxTime){  #loop over times
+  y=ode(y0,c(T0, T0+365),age.model,parms) #solve diff'l equation for each time
+  T=rbind(T, y[2,1])      #store results
+  S=rbind(S, y[2,2:5])
+  E=rbind(E, y[2,6:9])
+  I=rbind(I, y[2,10:13])
+  #Now do the yearly movements
+  #Note use of "tail" to pull off the last value in a vector
+  # So reconstruct the y0 init.state matrix, one at a time...
+  #S
+  y0[1]=tail(y,1)[2]-tail(y,1)[2]/6  #1/6th of susceptible age group 1 leave to group 2
+  y0[2]=tail(y,1)[3]+tail(y,1)[2]/6 - tail(y,1)[3]/4 #1/6th of group1 enter, 1/4 of group2 leave to group3....etc
+  y0[3]=tail(y,1)[4]+tail(y,1)[3]/4 - tail(y,1)[4]/10
+  y0[4]=tail(y,1)[5]+tail(y,1)[4]/10
+  #E
+  y0[5]=tail(y,1)[6]-tail(y,1)[6]/6
+  y0[6]=tail(y,1)[7]+tail(y,1)[6]/6 - tail(y,1)[7]/4
+  y0[7]=tail(y,1)[8]+tail(y,1)[7]/4 - tail(y,1)[8]/10
+  y0[8]=tail(y,1)[9]+tail(y,1)[8]/10
+  #I
+  y0[9]=tail(y,1)[10]-tail(y,1)[10]/6
+  y0[10]=tail(y,1)[11]+tail(y,1)[10]/6 - tail(y,1)[11]/4
+  y0[11]=tail(y,1)[12]+tail(y,1)[11]/4 - tail(y,1)[12]/10
+  y0[12]=tail(y,1)[13]+tail(y,1)[12]/10
+  T0=tail(T,1)
+}
+
+# and plot...
+#plot
+par(mar=c(2,4,2,2))
+par(mfrow=c(2,1))    #set up plotting region
+plot(T,S[,1],type='l',xlim=c(0,45000),ylim=c(0,0.06),xlab='Time (days)',
+     ylab='Proportion susceptible', main="original mixing") #plot susceptibles in youngest age class
+lines(T,S[,2],col='blue')           #susceptibles in second age class
+lines(T,S[,3],col='red')            #susceptibles in third age class
+lines(T,S[,4],col='green')          #susceptibles in oldest age class
+legend(x='topright',legend=c('<5','6-9','10-19','20+'),  #add legent
+       col=c('black','blue','red','green'),lty=1,bty='n')
+plot(T,I[,1],type='l',log='y',xlim=c(0,45000),xlab='Time (days)', #plot infected
+     ylab='Proportion infected')
+lines(T,I[,2],col='blue')
+lines(T,I[,3],col='red')
+lines(T,I[,4],col='green')
+
+
+#Exercise 1. 
+#Modify the WAIFW matrix to reflect greater assortativity in mixing. What effect does
+#this have on the epidemiological dynamics?
+
+#WAIFW matrix 
+# what is the average beta?
+parms$beta
+print(avg.beta <- mean(parms$beta)) #2.51825 so age group 2 mixes with each other a lot more etc.
+par(mfrow=c(1,1), mar=c(5,4,4,2))
+image(x=seq(1,4), y=seq(1,4), parms$beta, xlab='', ylab='')
+# greater ASSORTATIVE MIXING increases prob of contact being with same age group...
+# so change the diagonal
+parms2 <- parms
+parms2$beta[1] <-  4
+parms2$beta[11] <- 3.2
+parms2$beta[16] <- 3.1
+print(avg.beta2 <- mean(parms2$beta)) #gone from 2.51825 to 3.2925
+## rescale to acheive same average as in the original...
+parms2$beta <- parms2$beta*(avg.beta/avg.beta2)
+print(mean(parms2$beta)) # it's back to 2.51825
+image(x=seq(1,4), y=seq(1,4), parms2$beta, xlab='', ylab='') # shows stronger diagonal trend.
+
+#reset init conditions:
+y0<-c(0.05, 0.01, 0.01, 0.008, # S in age group 1,2,3,4
+      0.0001, 0.0001, 0.0001, 0.0001, #E in 1-4
+      0.0001, 0.0001, 0.0001, 0.0001) #I in 1-4
+
+T0 <- 0 #initial time
+S2 <- c() #initialize S
+E2 <- c() #initialize E
+I2 <- c() #initialize E
+T2 <- c() #initialize T, a vector to hold times
+while(T0<maxTime){ #loop over times
+ y <- lsoda(y0,c(T0, T0+365),age.model,parms2) #solve diff'l equation for each time
+ T2 <- rbind(T2, y[2,1]) #store results
+ S2 <- rbind(S2, y[2,2:5])
+ E2 <- rbind(E2, y[2,6:9])
+ I2 <- rbind(I2, y[2,10:13])
+ #Now do the yearly movements
+  #Note use of "tail" to pull off the last value in a vector
+  y0[1] <- tail(y,1)[2]-tail(y,1)[2]/6
+  y0[2] <- tail(y,1)[3]+tail(y,1)[2]/6 - tail(y,1)[3]/4
+  y0[3] <- tail(y,1)[4]+tail(y,1)[3]/4 - tail(y,1)[4]/10
+  y0[4] <- tail(y,1)[5]+tail(y,1)[4]/10
+  y0[5] <- tail(y,1)[6]-tail(y,1)[6]/6
+  y0[6] <- tail(y,1)[7]+tail(y,1)[6]/6 - tail(y,1)[7]/4
+  y0[7] <- tail(y,1)[8]+tail(y,1)[7]/4 - tail(y,1)[8]/10
+  y0[8] <- tail(y,1)[9]+tail(y,1)[8]/10
+  y0[9] <- tail(y,1)[10]-tail(y,1)[10]/6
+  y0[10] <- tail(y,1)[11]+tail(y,1)[10]/6 - tail(y,1)[11]/4
+  y0[11] <- tail(y,1)[12]+tail(y,1)[11]/4 - tail(y,1)[12]/10
+  y0[12] <- tail(y,1)[13]+tail(y,1)[12]/10
+  T0 <- tail(T2,1)
+}
+
+#plot
+par(mfrow=c(2,1)) #set up plotting region
+plot(T,S[,1],type='l',xlim=c(0,45000),ylim=c(0,0.06),xlab='Time (days)', col='grey',
+     ylab='Proportion susceptible') #plot susceptibles in youngest age class
+lines(T,S[,2],col='grey') #susceptibles in second age class
+lines(T,S[,3],col='grey') #susceptibles in third age class
+lines(T,S[,4],col='grey') #susceptibles in oldest age class
+lines(T,S2[,1],col='black') #susceptibles in second age class
+lines(T,S2[,2],col='blue') #susceptibles in second age class
+lines(T,S2[,3],col='red') #susceptibles in third age class
+lines(T,S2[,4],col='green') #susceptibles in oldest age class
+legend(x='topright',legend=c('<5','6-9','10-19','20+'), #add legend
+       col=c('black','blue','red','green'),lty=1,bty='n')
+plot(T,I[,1],type='l',log='y',xlim=c(0,45000),xlab='Time (days)', #plot infected
+     ylab='Proportion infected', col='grey')
+lines(T,I[,2],col='grey')
+lines(T,I[,3],col='grey')
+lines(T,I[,4],col='grey')
+lines(T,I2[,1],col='black') #susceptibles in second age class
+lines(T,I2[,2],col='blue') #susceptibles in second age class
+lines(T,I2[,3],col='red') #susceptibles in third age class
+lines(T,I2[,4],col='green') #susceptibles in oldest age class
+
+# Evidently, increasing assortativity increases the number of infected individuals in all age classes, while 
+#simultaneously shifting the age-distribution of infections toward younder age classes.
+
+# proportionally, children more likely to transmit to each other so therfore the age distribution trends younger...
